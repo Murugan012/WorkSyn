@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>AI Task Manager</title>
+    <title>WorkSyn | AI Task Manager</title>
     <style>
         body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; background-color: #f4f7f9; color: #333; display: flex; justify-content: center; align-items: center; height: 100vh; margin: 0; }
         .container { background: white; padding: 40px; border-radius: 12px; box-shadow: 0 10px 30px rgba(0, 0, 0, 0.1); width: 100%; max-width: 500px; text-align: center; }
@@ -19,27 +19,16 @@
         #task-list { list-style: none; padding: 0; text-align: left; margin-top: 20px; }
         #task-list li { background: #ecf0f1; padding: 15px; border-radius: 6px; margin-bottom: 10px; display: flex; justify-content: space-between; align-items: center; }
         .delete-btn { background: #e74c3c; color: white; border: none; padding: 5px 10px; border-radius: 4px; cursor: pointer; }
-        #ai-output {
-            text-align: left;
-            margin-top: 20px;
-            padding: 15px;
-            background: #e8f4fd;
-            border-left: 5px solid #3498db;
-            white-space: pre-wrap;
-            min-height: 50px;
-            max-height: 250px;
-            overflow-y: auto;
-            padding-right: 10px;
-        }
+        #ai-output { text-align: left; margin-top: 20px; padding: 15px; background: #e8f4fd; border-left: 5px solid #3498db; white-space: pre-wrap; min-height: 50px; max-height: 250px; overflow-y: auto; }
     </style>
 </head>
 <body>
 
     <div class="container">
         <div id="auth-container">
-            <h2>Welcome Back!</h2>
-            <input type="email" id="email" placeholder="Email" autocomplete="username">
-            <input type="password" id="password" placeholder="Password" autocomplete="current-password">
+            <h2>Welcome to WorkSyn</h2>
+            <input type="email" id="email" placeholder="Email">
+            <input type="password" id="password" placeholder="Password">
             <div id="auth-buttons">
                 <button id="login-btn">Login</button>
                 <button id="signup-btn">Sign Up</button>
@@ -48,9 +37,9 @@
         </div>
 
         <div id="app-container" style="display:none;">
-            <h1>My Tasks</h1>
+            <h1>WorkSyn Tasks</h1>
             <p>Welcome, <span id="user-email"></span>!</p>
-            <input type="text" id="task-input" placeholder="e.g., Finish project proposal">
+            <input type="text" id="task-input" placeholder="e.g., Enter your Daily Task">
             <button id="add-task-btn">Add Task</button>
             <ul id="task-list"></ul>
             <button id="ai-suggestion-btn">✨ Get AI Suggestions</button>
@@ -64,47 +53,53 @@
     <script src="https://www.gstatic.com/firebasejs/9.6.1/firebase-firestore-compat.js"></script>
 
     <script>
-        // --- STEP 1: INITIALIZE FIREBASE ---
+        // --- 1. FIREBASE CONFIGURATION ---
         const firebaseConfig = {
-            apiKey: "AIzaSyCgx3emsEUk6zcRLbL7RFN3yMNInOGxmw0",
-            authDomain: "worksyn-b6f78.firebaseapp.com",
-            projectId: "worksyn-b6f78",
-            storageBucket: "worksyn-b6f78.appspot.com",
-            messagingSenderId: "650064392675",
-            appId: "1:650064392675:web:79ae410cf07765652770d6",
-            measurementId: "G-RZQ7E5HZEP"
+            apiKey: "AIzaSyA3lPNLZIRUXaYFnS8b8RPpefO1wA_KFvo",
+            authDomain: "worksyn-e308d.firebaseapp.com",
+            projectId: "worksyn-e308d",
+            storageBucket: "worksyn-e308d.firebasestorage.app",
+            messagingSenderId: "729336420824",
+            appId: "1:729336420824:web:ffbe1af7fd6b0a59c17aad",
+            measurementId: "G-74Q17J2T0R"
         };
         firebase.initializeApp(firebaseConfig);
 
-        // --- STEP 2: AI API CONFIGURATION ---
-        const GEMINI_API_KEY = "AIzaSyAkzG7tDmDULx21M6xwKf6lFqWxRYbOcUI";
+        // --- 2. GEMINI API KEY ---
+        const GEMINI_API_KEY = "AIzaSyA_6GjdOHJX1B6F-hMMbfJY2q7inj6s0lc"; 
 
-        // --- FIREBASE SERVICES & DOM REFERENCES ---
         const auth = firebase.auth();
         const db = firebase.firestore();
         let currentUser = null;
+
         const authContainer = document.getElementById('auth-container');
         const appContainer = document.getElementById('app-container');
         const authError = document.getElementById('auth-error');
+        const taskList = document.getElementById('task-list');
+        const aiOutput = document.getElementById('ai-output');
 
-        // --- STEP 3: AUTHENTICATION LOGIC ---
+        // --- 3. PREDEFINED SUGGESTIONS & MOTIVATION ---
+        const fallbackMessages = [
+            "🤖 Server Busy: AI is resting. Use this time to tackle your hardest task!",
+            "Motivation: 'The best way to predict the future is to create it.' - Abraham Lincoln",
+            "Server Busy: AI is offline, but your progress isn't! Keep going.",
+            "Motivation: 'Coding is a superpower. Don't give up on that bug!'",
+            "Server Busy: AI is over-caffeinated. Try again in a minute!",
+            "Motivation: 'Success is a series of small wins. Cross one more task off!'"
+        ];
+
+        // --- 4. AUTH LOGIC ---
         document.getElementById('signup-btn').addEventListener('click', () => {
-            const email = document.getElementById('email').value;
-            const password = document.getElementById('password').value;
-            auth.createUserWithEmailAndPassword(email, password)
-                .catch(error => { authError.textContent = error.message; });
+            auth.createUserWithEmailAndPassword(document.getElementById('email').value, document.getElementById('password').value)
+                .catch(err => authError.textContent = err.message);
         });
 
         document.getElementById('login-btn').addEventListener('click', () => {
-            const email = document.getElementById('email').value;
-            const password = document.getElementById('password').value;
-            auth.signInWithEmailAndPassword(email, password)
-                .catch(error => { authError.textContent = error.message; });
+            auth.signInWithEmailAndPassword(document.getElementById('email').value, document.getElementById('password').value)
+                .catch(err => authError.textContent = err.message);
         });
 
-        document.getElementById('logout-btn').addEventListener('click', () => {
-            auth.signOut();
-        });
+        document.getElementById('logout-btn').addEventListener('click', () => auth.signOut());
 
         auth.onAuthStateChanged(user => {
             if (user) {
@@ -112,96 +107,68 @@
                 authContainer.style.display = 'none';
                 appContainer.style.display = 'block';
                 document.getElementById('user-email').textContent = user.email;
-                authError.textContent = '';
                 fetchTasks();
             } else {
                 currentUser = null;
                 authContainer.style.display = 'block';
                 appContainer.style.display = 'none';
-                document.getElementById('task-list').innerHTML = '';
-                document.getElementById('ai-output').innerHTML = '';
             }
         });
 
-        // --- STEP 4: TASK MANAGEMENT (CRUD) ---
-        const taskInput = document.getElementById('task-input');
-        const taskList = document.getElementById('task-list');
-
+        // --- 5. TASK LOGIC ---
         function fetchTasks() {
-            if (!currentUser) return;
             db.collection('tasks').doc(currentUser.uid).collection('userTasks').orderBy('createdAt', 'desc')
-                .onSnapshot(snapshot => {
+                .onSnapshot(snap => {
                     taskList.innerHTML = '';
-                    snapshot.forEach(doc => {
-                        const task = doc.data();
+                    snap.forEach(doc => {
                         const li = document.createElement('li');
-                        li.innerHTML = `<span>${task.text}</span><button class="delete-btn" data-id="${doc.id}">Delete</button>`;
+                        li.innerHTML = `<span>${doc.data().text}</span><button class="delete-btn" onclick="deleteTask('${doc.id}')">Delete</button>`;
                         taskList.appendChild(li);
                     });
                 });
         }
 
         document.getElementById('add-task-btn').addEventListener('click', () => {
-            const taskText = taskInput.value.trim();
-            if (taskText && currentUser) {
+            const text = document.getElementById('task-input').value;
+            if (text && currentUser) {
                 db.collection('tasks').doc(currentUser.uid).collection('userTasks').add({
-                    text: taskText,
+                    text: text,
                     createdAt: firebase.firestore.FieldValue.serverTimestamp()
                 });
-                taskInput.value = '';
+                document.getElementById('task-input').value = '';
             }
         });
 
-        taskList.addEventListener('click', (e) => {
-            if (e.target.classList.contains('delete-btn') && currentUser) {
-                const taskId = e.target.getAttribute('data-id');
-                db.collection('tasks').doc(currentUser.uid).collection('userTasks').doc(taskId).delete();
-            }
-        });
+        window.deleteTask = (id) => {
+            db.collection('tasks').doc(currentUser.uid).collection('userTasks').doc(id).delete();
+        };
 
-        // --- STEP 5: AI SUGGESTION FEATURE (USING GOOGLE GEMINI) ---
-        const aiSuggestionBtn = document.getElementById('ai-suggestion-btn');
-        const aiOutput = document.getElementById('ai-output');
-
-        aiSuggestionBtn.addEventListener('click', async () => {
-            if (!currentUser) return;
-            aiOutput.innerHTML = '🤖 Thinking...';
-
-            const taskElements = taskList.querySelectorAll('li span');
-            if (taskElements.length === 0) {
-                aiOutput.textContent = 'Add some tasks first to get suggestions!';
+        // --- 6. AI LOGIC WITH FALLBACKS ---
+        document.getElementById('ai-suggestion-btn').addEventListener('click', async () => {
+            aiOutput.textContent = '🤖 Thinking...';
+            const tasks = Array.from(taskList.querySelectorAll('span')).map(s => s.textContent).join(', ');
+            
+            if (!tasks) {
+                aiOutput.textContent = "Add some tasks first!";
                 return;
             }
-            const tasks = Array.from(taskElements).map(el => `- ${el.textContent}`).join('\n');
-
-            const prompt = `
-                Based on the following to-do list, please do two things:
-                1. Create a prioritized list of these tasks from most to least important.
-                2. Provide three actionable productivity tips related to completing these tasks.
-
-                Format your response clearly with headings. My tasks are:
-                ${tasks}
-            `;
 
             try {
-                const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash-latest:generateContent?key=${GEMINI_API_KEY}`, {
+                const response = await fetch(`https://generativelanguage.googleapis.com/v1/models/gemini-1.5-flash-latest:generateContent?key=${GEMINI_API_KEY}`, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ contents: [{ parts: [{ text: prompt }] }] })
+                    body: JSON.stringify({ contents: [{ parts: [{ text: "Prioritize these tasks: " + tasks }] }] })
                 });
 
-                if (!response.ok) {
-                    const errorData = await response.json();
-                    throw new Error(errorData.error.message);
-                }
-                
+                if (!response.ok) throw new Error("API Busy");
+
                 const data = await response.json();
-                const suggestion = data.candidates[0].content.parts[0].text;
-                
-                aiOutput.textContent = suggestion;
+                aiOutput.textContent = data.candidates[0].content.parts[0].text;
             } catch (error) {
-                console.error('Error fetching AI suggestion:', error);
-                aiOutput.textContent = `Sorry, I couldn't get a suggestion. Error: ${error.message}`;
+                // If the API fails, pick a random message from the fallback list
+                const randomMsg = fallbackMessages[Math.floor(Math.random() * fallbackMessages.length)];
+                aiOutput.textContent = randomMsg;
+                console.error("AI Fetch Error:", error);
             }
         });
     </script>
